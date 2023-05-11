@@ -4,12 +4,15 @@ from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
 from urllib.parse import urlparse
 
+import numpy as np
+import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+from openai.embeddings_utils import cosine_similarity, distances_from_embeddings
 
 from chatcrawler.hyperlink import get_domain_hyperlinks
 from chatcrawler.logger import logger
-from chatcrawler.utils import read_pdf_from_url, generate_name
+from chatcrawler.utils import generate_name, read_pdf_from_url
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
@@ -27,7 +30,7 @@ IGNORE_EXTENSION = (
 
 
 class Crawler:
-    def __init__(self, url: str):
+    def __init__(self, url: str = None):
         self.url = url
         self.all_sub_websites = False
         self.max_filename_char = 200
@@ -35,8 +38,8 @@ class Crawler:
         self.queue = Queue()
         # Create a set to store the URLs that have already been seen (no duplicates)
         self.seen = set([url])
-
         self.ignore_words = ["email-protection", "Login?Returnlink", "callback"]
+        self.df_embedded = None
 
     def worker(self, local_domain: str):
         while True:
@@ -105,6 +108,8 @@ class Crawler:
 
     def crawl(self):
         # Parse the URL and get the domain
+        if not self.url:
+            raise ValueError("url cannot be empty")
         local_domain = urlparse(self.url).netloc
         logger.info(f"scraping {local_domain}")
 
@@ -143,3 +148,8 @@ class Crawler:
 
     def __del__(self):
         self.session.close()
+
+    def get_embedded_data(self, file):
+        df = pd.read_csv(file, index_col=0)
+        df["embeddings"] = df["embeddings"].apply(eval).apply(np.array)
+        self.df_embedded = df
