@@ -1,21 +1,32 @@
-import requests
-
-from bs4 import BeautifulSoup
-
-from chatcrawler.logger import logger
-
-from urllib.parse import urlparse
-import threading
-from queue import Queue
 import os
 import ssl
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from queue import Queue
+from urllib.parse import urlparse
+
+import requests
+from bs4 import BeautifulSoup
+
 from chatcrawler.hyperlink import get_domain_hyperlinks
+from chatcrawler.logger import logger
 from chatcrawler.utils import read_pdf_from_url
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
-class Crawler:
+IGNORE_EXTENSION = (
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".xlsx",
+    ".xls",
+    ".docx",
+    ".doc",
+    ".xml",
+)
 
+
+class Crawler:
     def __init__(self, url: str):
         self.url = url
         self.all_sub_websites = False
@@ -25,12 +36,14 @@ class Crawler:
         # Create a set to store the URLs that have already been seen (no duplicates)
         self.seen = set([url])
 
+        self.ignore_words = ["email-protection", "Login?Returnlink", "callback"]
+
     def worker(self, local_domain: str):
         while True:
             try:
                 url: str = self.queue.get()
             except Queue.Empty:
-                logger.warn(f"que is empty")
+                logger.warning(f"queue is empty")
                 break
 
             if url is None:
@@ -38,27 +51,22 @@ class Crawler:
 
             # shorten name
             url_no_https = url[8:]
-            shortened_url = url_no_https[:self.max_filename_char]
+            shortened_url = url_no_https[: self.max_filename_char]
 
-            # filename = (
-            #     "text/" + local_domain + "/" + shortened_url.replace("/", "_") + ".txt"
-            # )
-
-            filename = os.path.join("text", local_domain, shortened_url.replace("/", "_") + ".txt")
-
+            filename = os.path.join(
+                "text", local_domain, shortened_url.replace("/", "_") + ".txt"
+            )
 
             try:
                 # Save text from the url to a <url>.txt file
                 if not os.path.exists(filename):
                     with open(filename, "w", encoding="utf-8") as f:
-
                         # Get the text from the URL using BeautifulSoup
-                        logger.info(f"getting the url {url}")
                         response = self.session.get(url, verify=False)
-                        content_type = response.headers.get('Content-Type')
+                        content_type = response.headers.get("Content-Type")
 
                         # write pdf instead of saving as text
-                        if content_type and 'pdf' in content_type.lower():
+                        if content_type and "pdf" in content_type.lower():
                             text = read_pdf_from_url(url)
                             logger.info(f"writing text from pdf {url}")
                             f.write(text)
@@ -67,7 +75,6 @@ class Crawler:
 
                         soup = BeautifulSoup(response.text, "html.parser")
                         text = soup.get_text()
-
 
                         # If the crawler gets to a page that requires JavaScript, it will stop the crawl
                         if "You need to enable JavaScript to run this app." in text:
@@ -79,7 +86,7 @@ class Crawler:
                         logger.info(f"writing text {url}")
                         f.write(text)
                 else:
-                    logger.info(f'skipping file since it exists already {url}')
+                    logger.info(f"skipping file since it exists already {url}")
 
             except Exception as e:
                 logger.error(f"Error writing to file {filename}: {e}")
@@ -87,20 +94,24 @@ class Crawler:
             # Get the hyperlinks from the URL and add them to the queue
             for link in get_domain_hyperlinks(local_domain, url, self.all_sub_websites):
                 if link not in self.seen:
-                    logger.info(f'adding link {link}')
                     # dont scrape these
-                    if not (link.endswith(".jpeg") or link.endswith(".jpg") or "email-protection" in link or 'Login?Returnlink' in link or 'callback' in link):
+
+                    if not (
+                        link.endswith(IGNORE_EXTENSION)
+                        or any(word in link for word in self.ignore_words)
+                    ):
+                        logger.info(f"adding link {link}")
                         self.queue.put(link)
                     else:
-                        logger.info(f'skipping {link}')
+                        logger.info(f"skipping {link}")
                     self.seen.add(link)
 
             self.queue.task_done()
 
-
     def crawl(self):
         # Parse the URL and get the domain
         local_domain = urlparse(self.url).netloc
+        logger.info(f"scraping {local_domain}")
 
         # Create a queue to store the URLs to crawl
         self.queue.put(self.url)
@@ -114,23 +125,26 @@ class Crawler:
         if not os.path.exists("processed"):
             os.mkdir("processed")
 
-        # Create worker threads
-        num_worker_threads = 12
-        threads = []
-        for i in range(num_worker_threads):
-            t = threading.Thread(target=self.worker, args=(local_domain))
-            t.start()
-            threads.append(t)
+        with ThreadPoolExecutor() as executor:
+            # Submit worker tasks to the executor
 
-        # Wait for all tasks to be completed
-        self.queue.join()
+            logger.info(f"number of workers: {executor._max_workers}")
 
-        # Stop workers
-        for i in range(num_worker_threads):
-            self.queue.put(None)
-        for t in threads:
-            t.join()
+            futures = [
+                executor.submit(self.worker, local_domain)
+                for _ in range(executor._max_workers)
+            ]
 
+            # Wait for all tasks to be completed
+            self.queue.join()
+
+            # Stop workers by putting None into the queue for each worker
+            for _ in range(executor._max_workers):
+                self.queue.put(None)
+
+            # Wait for all worker threads to finish
+            for future in futures:
+                future.result()
 
     def __del__(self):
         self.session.close()

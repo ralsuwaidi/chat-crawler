@@ -71,7 +71,7 @@ def get_domain_hyperlinks(local_domain, url, all_sub_websites=False) -> list:
         if re.search(HTTP_URL_PATTERN, link):
             # Parse the URL and check if the domain is the same
             url_obj = urlparse(link)
-            if url_obj.netloc == local_domain or (url_obj.netloc.endswith(".sub.ae") and all_sub_websites):
+            if url_obj.netloc == local_domain or (url_obj.netloc.endswith(".gov.ae") and all_sub_websites):
                 clean_link = link
 
         # If the link is not a URL, check if it is a relative link
