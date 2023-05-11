@@ -1,6 +1,5 @@
 import os
 import ssl
-import threading
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
 from urllib.parse import urlparse
@@ -10,9 +9,10 @@ from bs4 import BeautifulSoup
 
 from chatcrawler.hyperlink import get_domain_hyperlinks
 from chatcrawler.logger import logger
-from chatcrawler.utils import read_pdf_from_url
+from chatcrawler.utils import read_pdf_from_url, generate_name
 
 ssl._create_default_https_context = ssl._create_unverified_context
+
 
 IGNORE_EXTENSION = (
     ".png",
@@ -49,18 +49,13 @@ class Crawler:
             if url is None:
                 break
 
-            # shorten name
-            url_no_https = url[8:]
-            shortened_url = url_no_https[: self.max_filename_char]
-
-            filename = os.path.join(
-                "text", local_domain, shortened_url.replace("/", "_") + ".txt"
-            )
+            filename = os.path.join("text", local_domain, generate_name())
 
             try:
                 # Save text from the url to a <url>.txt file
                 if not os.path.exists(filename):
                     with open(filename, "w", encoding="utf-8") as f:
+                        f.write(f"{url}\n")
                         # Get the text from the URL using BeautifulSoup
                         response = self.session.get(url, verify=False)
                         content_type = response.headers.get("Content-Type")

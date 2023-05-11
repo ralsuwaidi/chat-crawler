@@ -1,4 +1,7 @@
 import io
+import secrets
+import string
+
 import PyPDF2
 import requests
 
@@ -40,3 +43,16 @@ def remove_newlines(serie):
     serie = serie.str.replace("  ", " ")
     serie = serie.str.replace("  ", " ")
     return serie
+
+
+def generate_name():
+    """
+    Generates a random string of six alphanumeric characters using the secrets module.
+
+    Returns:
+        A string of six randomly generated alphanumeric characters.
+    """
+
+    alphabet = string.ascii_letters + string.digits
+    random_string = "".join(secrets.choice(alphabet) for i in range(6))
+    return random_string + ".txt"
