@@ -6,7 +6,6 @@ import PyPDF2
 import requests
 from langdetect import detect
 import openai
-from gbot.chat import answer_question
 
 import tiktoken
 
@@ -120,24 +119,6 @@ def translate_to_arabic(text):
         model="text-davinci-003",
     )
     return response["choices"][0]["text"].strip()
-
-
-def answer_arabic(question, df, answer_func):
-    """
-    Translates an Arabic question into English, passes it to answer_func to get the answer,
-    and translates the answer back to Arabic. Returns the answer in Arabic and any related URLs.
-
-    :param question: A string representing the Arabic question to be answered.
-    :param df: A pandas DataFrame containing the data to be used to answer the question.
-    :param answer_func: A function that takes the DataFrame and the English version of the question
-                        and returns the answer and related URLs.
-    :return: A tuple containing the answer to the question in Arabic and any related URLs.
-    """
-
-    q_english = translate_to_english(question)
-    answer, urls = answer_func(df, question=q_english, debug=False)
-    a_arabic = translate_to_arabic(answer)
-    return a_arabic, urls
 
 
 def split_into_many(text, max_tokens=500):

@@ -13,9 +13,9 @@ import requests
 import tiktoken
 from bs4 import BeautifulSoup
 
-from gbot.hyperlink import get_domain_hyperlinks
-from gbot.logger import logger
-import gbot.utils as utils
+from gbot.utils.hyperlink import get_domain_hyperlinks
+from gbot.utils.logger import logger
+import gbot.utils.utils as utils
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
