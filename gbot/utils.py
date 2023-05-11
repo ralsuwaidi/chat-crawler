@@ -6,7 +6,9 @@ import PyPDF2
 import requests
 from langdetect import detect
 import openai
-from chatcrawler.chat import answer_question
+from gbot.chat import answer_question
+
+import tiktoken
 
 
 # Function to get the contents of a PDF from a URL
@@ -138,18 +140,49 @@ def answer_arabic(question, df, answer_func):
     return a_arabic, urls
 
 
-def general_answer(question, df):
+def split_into_many(text, max_tokens=500):
     """
-    Given a question and a dataframe, returns an answer and URLs related to the question.
+    Splits a given text into multiple chunks of sentences, where each chunk has a maximum number of tokens
+    defined by the max_tokens parameter. Uses the Hugging Face Tokenizer to encode the text and calculate
+    the number of tokens. Returns a list of strings, where each string is a chunk of sentences.
 
-    :param question: a string representing the question to answer.
-    :param df: a pandas DataFrame containing the data to answer the question.
-    :return: a tuple containing the answer and a list of URLs related to the question.
+    Args:
+        text (str): The text to be split into chunks.
+        max_tokens (int): The maximum number of tokens allowed in each chunk. Defaults to 500.
+
+    Returns:
+        list: A list of strings, where each string is a chunk of sentences.
     """
 
-    if is_arabic(question):
-        answer, urls = answer_arabic(question, df, answer_question)
-    else:
-        answer, urls = answer_question(df, question=question, debug=False)
+    tokenizer = tiktoken.get_encoding("cl100k_base")
 
-    return answer, urls
+    # Split the text into sentences
+    sentences = text.split(". ")
+
+    # Get the number of tokens for each sentence
+    n_tokens = [len(tokenizer.encode(" " + sentence)) for sentence in sentences]
+
+    chunks = []
+    tokens_so_far = 0
+    chunk = []
+
+    # Loop through the sentences and tokens joined together in a tuple
+    for sentence, token in zip(sentences, n_tokens):
+        # If the number of tokens so far plus the number of tokens in the current sentence is greater
+        # than the max number of tokens, then add the chunk to the list of chunks and reset
+        # the chunk and tokens so far
+        if tokens_so_far + token > max_tokens:
+            chunks.append(". ".join(chunk) + ".")
+            chunk = []
+            tokens_so_far = 0
+
+        # If the number of tokens in the current sentence is greater than the max number of
+        # tokens, go to the next sentence
+        if token > max_tokens:
+            continue
+
+        # Otherwise, add the sentence to the chunk and add the number of tokens to the total
+        chunk.append(sentence)
+        tokens_so_far += token + 1
+
+    return chunks
