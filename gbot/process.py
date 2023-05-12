@@ -18,6 +18,7 @@ IGNORE_EXTENSION = (
     ".docx",
     ".doc",
     ".xml",
+    ".zip",
 )
 
 
@@ -55,7 +56,9 @@ class Process:
         self.df = df
 
         self.prepare_folder()
-        self.df.to_csv(f"processed/processed_{self.domain}.csv", escapechar="\\")
+        filename = f"processed/processed_{self.domain}.csv"
+        self.df.to_csv(filename, escapechar="\\")
+        logger.info(f"finished processing folder, file saved to {filename}")
 
     def shorten(self):
         """
@@ -66,13 +69,18 @@ class Process:
         """
 
         # Load the cl100k_base tokenizer which is designed to work with the ada-002 model
-        tokenizer = tiktoken.get_encoding("cl100k_base")
+        encoder = "cl100k_base"
+        tokenizer = tiktoken.get_encoding(encoder)
 
         self.df.columns = ["url", "text"]
         # Tokenize the text and save the number of tokens to a new column
         self.df.dropna(subset=["text"], inplace=True)
         self.df["n_tokens"] = self.df.text.apply(lambda x: len(tokenizer.encode(x)))
-        print(f"finished adding tokens")
+        logger.info(f"finished tokenizing using {encoder}")
+
+        logger.info(
+            f"shortening every line based on max tokens. Max tokens set is {self.max_tokens}"
+        )
 
         # Function to split the text into chunks of a maximum number of tokens
         shortened = []
@@ -98,7 +106,7 @@ class Process:
 
         self.df = self.df.drop(self.df[self.df["n_tokens"] < 2].index)
 
-        print("finished shortening")
+        logger.info(f"finished shortening the files")
 
     def worker(self):
         while True:
@@ -164,3 +172,18 @@ class Process:
                     self.seen.add(link)
 
             self.queue.task_done()
+
+    def prepare_folder(self):
+        """
+        Creates a directory to store text files for the given domain and a directory to store processed csv files.
+        :return: None
+        """
+
+        # Create a directory to store the text files
+        text_dir = "text/" + self.domain + "/"
+        if not os.path.exists(text_dir):
+            os.makedirs(text_dir)
+
+        # Create a directory to store the csv files
+        if not os.path.exists("processed"):
+            os.mkdir("processed")

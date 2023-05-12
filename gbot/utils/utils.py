@@ -167,3 +167,19 @@ def split_into_many(text, max_tokens=500):
         tokens_so_far += token + 1
 
     return chunks
+
+
+def create_embedding(text):
+    """
+    Creates an embedding for the given text using the OpenAI API.
+
+    Args:
+        text (str): The input text to be embedded.
+
+    Returns:
+        list: A list of floats representing the embedding of the text.
+    """
+
+    return openai.Embedding.create(input=text, engine="text-embedding-ada-002")["data"][
+        0
+    ]["embedding"]

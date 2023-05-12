@@ -6,10 +6,10 @@ from queue import Queue
 from urllib.parse import urlparse
 
 import numpy as np
-import openai
 import pandas as pd
 import requests
 
+import gbot.utils.utils as utils
 from gbot.answer import Answer
 from gbot.process import Process
 from gbot.utils.logger import logger
@@ -79,34 +79,40 @@ class GBot(Answer, Process):
 
     def to_embedding(self, folder):
         """
-        This function generates embeddings for a given list of texts using OpenAI's Text Embedding Ada 002
-        engine. The function uses multithreading to create embeddings in parallel for each text.
+        Takes a folder path as input and converts the text files inside it into embeddings.
+        Returns None.
 
-        :return: a list of embeddings for each text in the input list
+        Args:
+            folder (str): The absolute path to the folder containing text files.
+
+        Raises:
+            None
+
+        Example Usage:
+            >>> to_embedding("/path/to/folder")
         """
 
-        # get text
+        # get text and clean it
+        # convert to df
         self.process_folder(folder)
-        # shorten and tokenize the text and update self.df
+        # shorten and tokenize the df
         self.shorten()
 
         embeddings = []
 
-        def create_embedding(text):
-            return openai.Embedding.create(input=text, engine="text-embedding-ada-002")[
-                "data"
-            ][0]["embedding"]
+        logger.info(f"started embedding {self.domain}")
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            for i, result in enumerate(executor.map(create_embedding, self.df["text"])):
+            for i, result in enumerate(
+                executor.map(utils.create_embedding, self.df["text"])
+            ):
                 embeddings.append(result)
                 logger.info("Embedded %d/%d texts", i + 1, len(self.df))
 
         self.df["embeddings"] = embeddings
         filename = f"processed/embeddings_{self.domain}.csv"
         self.df.to_csv(filename, escapechar="\\")
-        print("finished embedding", self.domain)
-        print("saved embeddings to", filename)
+        logger.info(f"finished embedding {self.domain}. Embeddings saved to {filename}")
 
     def prepare_folder(self):
         """
