@@ -84,7 +84,7 @@ def answer_question(
     try:
         # Create a completions using the question and context
         response = openai.Completion.create(
-            prompt=f'Answer the question based on the context below, and if the question can\'t be answered based on the context, say "I couldnt find the answer"\n\nContext: {context}\n\n---\n\nQuestion: {question}\nAnswer:',
+            prompt=f'Answer the question based on the context below, and if the question can\'t be answered based on the context, say "I could not find the answer in the databse but this resource may help"\n\nContext: {context}\n\n---\n\nQuestion: {question}\nAnswer:',
             temperature=0,
             max_tokens=max_tokens,
             top_p=1,
@@ -107,10 +107,7 @@ class Answer:
         :return: A tuple containing the answer as a string and a list of relevant URLs.
         """
 
-        if utils.is_arabic(question):
-            print("arabic")
-            answer, urls = answer_arabic(question, self.df, answer_question)
-        else:
-            answer, urls = answer_question(self.df, question=question, debug=show_debug)
+  
+        answer, urls = answer_question(self.df, question=question, debug=show_debug)
 
         return answer, urls
